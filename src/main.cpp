@@ -651,6 +651,13 @@ std::string get_text_or_empty(const Value& message) {
 }
 
 int main() {
+#ifdef _WIN32
+    FreeConsole();
+    HWND console = GetConsoleWindow();
+    if (console) {
+        ShowWindow(console, SW_HIDE);
+    }
+#endif
     std::string token = getenv_or_empty("TELEGRAM_BOT_TOKEN");
     if (token.empty()) {
         std::cerr << "TELEGRAM_BOT_TOKEN is not set" << std::endl;
