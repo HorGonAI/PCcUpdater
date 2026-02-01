@@ -5,15 +5,24 @@ Telegram-бот для обновления удаленного управле�
 - последнего релиза GitHub;
 - загрузки `.zip` файла в чат.
 
-## Быстрый старт
+## Сборка
 
-1. Установите зависимости:
+Требования:
+
+- CMake 3.20+
+- компилятор с поддержкой C++17
+- libcurl (для HTTP запросов)
+
+Пример сборки:
 
 ```bash
-pip install -r requirements.txt
+cmake -S . -B build
+cmake --build build
 ```
 
-2. Задайте переменные окружения:
+## Быстрый старт
+
+1. Задайте переменные окружения:
 
 ```powershell
 $env:TELEGRAM_BOT_TOKEN="<bot_token>"
@@ -21,17 +30,17 @@ $env:PC_UPDATER_TARGET_DIR="C:\Users\Gleb\pc"
 $env:PC_UPDATER_GITHUB_REPO="owner/repo"
 ```
 
-3. (Опционально) Укажите exe для перезапуска и автозапуска, если в папке несколько `.exe`:
+2. (Опционально) Укажите exe для перезапуска и автозапуска, если в папке несколько `.exe`:
 
 ```powershell
 $env:PC_UPDATER_TARGET_EXE="RemoteControl.exe"
 $env:PC_UPDATER_AUTOSTART_NAME="RemoteControl"
 ```
 
-4. Запустите бота:
+3. Запустите бота:
 
 ```bash
-python src/main.py
+./build/pc_updater
 ```
 
 ## Управление ботом
