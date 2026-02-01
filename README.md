@@ -61,6 +61,17 @@ $env:PC_UPDATER_AUTOSTART_NAME="RemoteControl"
    - новые файлы добавляются;
    - существующие перезаписываются.
 5. После обновления exe перезапускается и заново добавляется в автозапуск.
+6. Обновлятор также добавляется в автозапуск (папка Startup, Run, Планировщик).
+
+## Автонастройка обновлятора
+
+Скрипт `scripts/setup-updater.ps1` задает папку управления и добавляет обновлятор в автозапуск.
+
+Пример:
+
+```powershell
+./scripts/setup-updater.ps1 -TargetDir "C:\Users\Gleb\pc" -UpdaterExe "C:\path\to\pc_updater.exe"
+```
 
 ## Дополнительно
 

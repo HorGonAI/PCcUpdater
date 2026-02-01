@@ -19,6 +19,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <shlobj.h>
 #endif
 
 namespace fs = std::filesystem;
@@ -121,6 +122,19 @@ std::string resolve_autostart_name(const fs::path& exe_path) {
         name = exe_path.stem().string();
     }
     return name;
+}
+
+fs::path get_self_exe_path() {
+#ifdef _WIN32
+    wchar_t buffer[MAX_PATH];
+    DWORD size = GetModuleFileNameW(nullptr, buffer, MAX_PATH);
+    if (size == 0) {
+        throw std::runtime_error("Failed to resolve updater exe path");
+    }
+    return fs::path(buffer);
+#else
+    return fs::current_path();
+#endif
 }
 
 fs::path temp_zip_path(const std::string& prefix) {
@@ -260,8 +274,8 @@ MessageRef send_message(const std::string& token, long long chat_id, const std::
     Value json = simple_json::parse(response);
     const auto& result = json.at("result").as_object();
     MessageRef ref;
-    ref.chat_id = result.at("chat").at("id").as_number();
-    ref.message_id = result.at("message_id").as_number();
+    ref.chat_id = static_cast<long long>(result.at("chat").at("id").as_number());
+    ref.message_id = static_cast<long long>(result.at("message_id").as_number());
     return ref;
 }
 
@@ -468,7 +482,7 @@ void start_exe(const fs::path& exe_path) {
 #endif
 }
 
-void ensure_autostart(const fs::path& exe_path, const std::string& name) {
+void ensure_autostart_registry(const fs::path& exe_path, const std::string& name) {
 #ifdef _WIN32
     HKEY key;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_SET_VALUE, &key) != ERROR_SUCCESS) {
@@ -484,11 +498,52 @@ void ensure_autostart(const fs::path& exe_path, const std::string& name) {
 #endif
 }
 
+void ensure_autostart_startup_folder(const fs::path& exe_path, const std::string& name) {
+#ifdef _WIN32
+    PWSTR startup_path = nullptr;
+    if (SHGetKnownFolderPath(FOLDERID_Startup, 0, nullptr, &startup_path) != S_OK) {
+        return;
+    }
+    fs::path shortcut = fs::path(startup_path) / (name + ".lnk");
+    CoTaskMemFree(startup_path);
+    if (fs::exists(shortcut)) {
+        return;
+    }
+    std::wstring command = L"powershell -Command \"$s=(New-Object -ComObject WScript.Shell).CreateShortcut('" + shortcut.wstring() + L"');$s.TargetPath='" + exe_path.wstring() + L"';$s.WorkingDirectory='" + exe_path.parent_path().wstring() + L"';$s.Save()\"";
+    _wsystem(command.c_str());
+#else
+    (void)exe_path;
+    (void)name;
+#endif
+}
+
+void ensure_autostart_task_scheduler(const fs::path& exe_path, const std::string& name) {
+#ifdef _WIN32
+    std::wstring task_name = std::wstring(name.begin(), name.end()) + L" Logon";
+    std::wstring check_cmd = L"schtasks /Query /TN \"" + task_name + L"\" >nul 2>&1";
+    int query = _wsystem(check_cmd.c_str());
+    if (query == 0) {
+        return;
+    }
+    std::wstring create_cmd = L"schtasks /Create /F /SC ONLOGON /RL HIGHEST /TN \"" + task_name + L"\" /TR \"" + exe_path.wstring() + L"\"";
+    _wsystem(create_cmd.c_str());
+#else
+    (void)exe_path;
+    (void)name;
+#endif
+}
+
+void ensure_autostart_all(const fs::path& exe_path, const std::string& name) {
+    ensure_autostart_registry(exe_path, name);
+    ensure_autostart_startup_folder(exe_path, name);
+    ensure_autostart_task_scheduler(exe_path, name);
+}
+
 void restart_and_autostart(const fs::path& target_dir) {
     fs::path exe_path = resolve_target_exe(target_dir);
     stop_running_exe(exe_path);
     start_exe(exe_path);
-    ensure_autostart(exe_path, resolve_autostart_name(exe_path));
+    ensure_autostart_all(exe_path, resolve_autostart_name(exe_path));
 }
 
 fs::path download_github_latest_release(const std::string& repo, const std::string& token, std::function<void(int)> progress_cb) {
@@ -570,9 +625,11 @@ void handle_update_flow(const std::string& token, long long chat_id, std::functi
         verify_exe_launch(prepared.exe_path);
         edit_message(token, progress, render_progress("Тестирование...", 100));
         edit_message(token, progress, render_progress("Установка...", 0));
-        apply_update(extract_dir, resolve_target_dir());
+        fs::path target_dir = resolve_target_dir();
+        apply_update(extract_dir, target_dir);
         edit_message(token, progress, render_progress("Установка...", 100));
-        restart_and_autostart(resolve_target_dir());
+        restart_and_autostart(target_dir);
+        ensure_autostart_all(get_self_exe_path(), "PCcUpdater");
         edit_message(token, progress, "Установка завершена.");
     } catch (const std::exception& ex) {
         send_message(token, chat_id, std::string("Ошибка при обновлении: ") + ex.what());
