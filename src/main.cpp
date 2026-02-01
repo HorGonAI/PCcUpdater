@@ -303,7 +303,7 @@ std::string keyboard_update_menu() {
 
 std::string render_progress(const std::string& label, int percent) {
     int bars = 10;
-    int filled = std::max(0, std::min(bars, percent / 10));
+    int filled = (std::max)(0, (std::min)(bars, percent / 10));
     std::string bar = "[" + std::string(filled, '=') + std::string(bars - filled, ' ') + "]";
     return label + "\n" + bar + " " + std::to_string(percent) + "%";
 }
@@ -686,7 +686,7 @@ int main() {
                     continue;
                 }
                 long long update_id = static_cast<long long>(update.at("update_id").as_number());
-                offset = std::max(offset, update_id + 1);
+                offset = (std::max)(offset, update_id + 1);
 
                 const auto* message_value = update.find("message");
                 if (!message_value || !message_value->is_object()) {
