@@ -8,7 +8,6 @@
 #include <functional>
 #include <iostream>
 #include <map>
-#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -301,10 +300,14 @@ std::string keyboard_update_menu() {
     return R"({"keyboard":[["GitHub-ом",".zip-ом"],["Выйти"]],"resize_keyboard":true})";
 }
 
+bool has_zip_extension(const std::string& name) {
+    return fs::path(name).extension() == ".zip";
+}
+
 std::string render_progress(const std::string& label, int percent) {
-    int bars = 10;
-    int filled = (std::max)(0, (std::min)(bars, percent / 10));
-    std::string bar = "[" + std::string(filled, '=') + std::string(bars - filled, ' ') + "]";
+    constexpr int kBars = 10;
+    int filled = (std::max)(0, (std::min)(kBars, percent / 10));
+    std::string bar = "[" + std::string(filled, '=') + std::string(kBars - filled, ' ') + "]";
     return label + "\n" + bar + " " + std::to_string(percent) + "%";
 }
 
@@ -571,7 +574,7 @@ fs::path download_github_latest_release(const std::string& repo, const std::stri
         if (!name_value || !url_value) {
             continue;
         }
-        if (name_value->as_string().size() >= 4 && name_value->as_string().substr(name_value->as_string().size() - 4) == ".zip") {
+        if (has_zip_extension(name_value->as_string())) {
             download_url = url_value->as_string();
             break;
         }
@@ -593,14 +596,14 @@ std::string telegram_get_updates(const std::string& token, long long offset) {
     return http_get(url);
 }
 
-std::string download_telegram_file(const std::string& token, const std::string& file_id, std::function<void(int)> progress_cb) {
+fs::path download_telegram_file(const std::string& token, const std::string& file_id, std::function<void(int)> progress_cb) {
     std::string response = telegram_post(token, "getFile", {{"file_id", file_id}});
     Value json = simple_json::parse(response);
     std::string file_path = json.at("result").at("file_path").as_string();
     std::string url = "https://api.telegram.org/file/bot" + token + "/" + file_path;
     fs::path out_path = temp_zip_path("chat-upload");
     http_download(url, out_path, std::move(progress_cb));
-    return out_path.string();
+    return out_path;
 }
 
 void cleanup_path(const fs::path& path) {
@@ -736,11 +739,11 @@ int main() {
                     const auto* file_id_value = document_value->find("file_id");
                     if (file_name_value && file_id_value && file_name_value->is_string() && file_id_value->is_string()) {
                         std::string file_name = file_name_value->as_string();
-                        if (file_name.size() >= 4 && file_name.substr(file_name.size() - 4) == ".zip") {
+                        if (has_zip_extension(file_name)) {
                             state.state = MenuState::Main;
                             std::string file_id = file_id_value->as_string();
                             handle_update_flow(token, chat_id, [&](std::function<void(int)> progress_cb) {
-                                return fs::path(download_telegram_file(token, file_id, std::move(progress_cb)));
+                                return download_telegram_file(token, file_id, std::move(progress_cb));
                             });
                         } else {
                             send_message(token, chat_id, "Нужен файл .zip. Попробуйте снова.");
