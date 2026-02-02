@@ -54,9 +54,14 @@ function Ensure-TaskScheduler {
     )
 
     $taskName = "$Name Logon"
-    $existing = schtasks /Query /TN $taskName 2>$null
+    $schtasks = Join-Path $env:SystemRoot "System32\\schtasks.exe"
+    if (-not (Test-Path $schtasks)) {
+        Write-Warning "schtasks.exe not found; skipping Task Scheduler setup."
+        return
+    }
+    $existing = & $schtasks /Query /TN $taskName 2>$null
     if (-not $?) {
-        schtasks /Create /F /SC ONLOGON /RL HIGHEST /TN $taskName /TR $ExePath | Out-Null
+        & $schtasks /Create /F /SC ONLOGON /RL HIGHEST /TN $taskName /TR $ExePath | Out-Null
     }
 }
 
